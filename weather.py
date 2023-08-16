@@ -1,4 +1,6 @@
 import os
+import sys
+
 from dotenv import load_dotenv
 
 import requests
@@ -6,9 +8,17 @@ import json
 
 from art import tprint
 
+try:
+    load_dotenv('.env')
+    API = os.getenv('API_TOKEN', default=None)
 
-load_dotenv('.env')
-API = os.getenv('API_TOKEN', default=None)
+    if API is None or API == '':
+        print('[-] API_TOKEN is not provided. Please set the API_TOKEN in your .env file.')
+        sys.exit(1)  # завершение программы с кодом ошибки
+
+except Exception as e:
+    print(f'[-] An error occurred while loading environment variables: {e}')
+    sys.exit(1)
 
 
 def check_weather(city_name):
@@ -16,32 +26,35 @@ def check_weather(city_name):
     try:
         response = requests.get(url)
         if response:
-            write_info_to_file(response, city_name)
-            # with open("weather.json", "r") as file:
-            #     weather_data = json.load(file)
-
+            print('[+] Data is received from the server. Data processing..')
             weather = response.json()
-            print(f'[+] City: {weather["name"]}')
-            print(f'[+] Temperature: {weather["weather"][0]["main"]}')
-            print(f'[+] Feels like: {weather["main"]["feels_like"]}')
-            print(f'[+] Humidity: {weather["main"]["humidity"]}')
-            print(f'[+] Wind: {weather["wind"]["speed"]}')
-            print(f'[+] Cloudiness: {weather["weather"][0]["description"]} - '
-                  f'{weather["clouds"]["all"]}')
-        elif response.json()["message"] == 'city not found':
-            print('[-] Please check that the city name is entered correctly..')
+            try:
+                print(f'[+] City: {weather["name"]}')
+                print(f'[+] Temperature: {weather["weather"][0]["main"]}')
+                print(f'[+] Feels like: {weather["main"]["feels_like"]}')
+                print(f'[+] Humidity: {weather["main"]["humidity"]}')
+                print(f'[+] Wind: {weather["wind"]["speed"]}')
+                print(f'[+] Cloudiness: {weather["weather"][0]["description"]} - '
+                      f'{weather["clouds"]["all"]}')
+            except KeyError as exception:
+                print(f'[-] Error occurred while parsing API response: {exception}.\nData format error.')
+        elif response.status_code == 404:
+            print('[-] City not found. Please check the entered city name.')
         else:
-            print(f'{response.json()["message"]}')
-    except requests.exceptions.ConnectionError as exception:
+            print(f'[-] An error occurred: {response.status_code} - {response.reason}')
+    except requests.exceptions.ConnectionError:
         print(f'[-] Connection ERROR! Check your connection to the internet..')
         # print(f'{exception}')
+    except requests.exceptions.Timeout:
+        print("[-] Timeout ERROR! The request took too long to complete.")
+    except requests.exceptions.TooManyRedirects:
+        print("[-] Too many redirects occurred.")
+    except requests.exceptions.HTTPError as exception:
+        print(f"[-] HTTP Error occurred: {exception}")
+    except requests.exceptions.RequestException as exception:
+        print(f"[-] An error occurred during the request: {exception}")
     finally:
         print('*' * 30)
-
-
-def write_info_to_file(data, city_name):
-    with open(f'weather-{city_name}.json', 'w') as file:
-        json.dump(data.json(), file, indent=4)
 
 
 if __name__ == '__main__':
